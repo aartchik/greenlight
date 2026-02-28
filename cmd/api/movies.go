@@ -1,12 +1,16 @@
 package main
 
 import (
+	"errors"
 	"fmt"
-	"greenlight.aartchik.net/internal/data"
 	"net/http"
-	"time"
 	"greenlight.aartchik.net/internal/validator"
+	"greenlight.aartchik.net/internal/data"
+
 )
+
+
+
 
 func (app *application) createMovieHandler(w http.ResponseWriter, r *http.Request) {
 
@@ -23,23 +27,36 @@ func (app *application) createMovieHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	v := validator.New()
-	movies := &data.Movie{
+	movie := &data.Movie{
 		Title: input.Title,
 		Year: input.Year,
 		Runtime: input.Runtime,
 		Genres: input.Genres,
 	}
 
-	data.ValidateMovie(v, movies)
-	if data.ValidateMovie(v, movies); !v.Valid() {
+	v := validator.New()
+
+	data.ValidateMovie(v, movie)
+	if data.ValidateMovie(v, movie); !v.Valid() {
 		app.failedValidationResponse(w, r, v.Errors)
 		return
 	}
 
+	err = app.models.Movies.Insert(movie)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	headers := make(http.Header)
+	headers.Set("Location", fmt.Sprintf("/v1/movies/%d", movie.Id))
+
+	err = app.writeJSON(w, http.StatusCreated, envelope{"movie": movie}, headers)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
 
 
-	fmt.Fprintf(w, "%+v\n", input)
 }
 
 func (app *application) showMovieHandler(w http.ResponseWriter, r *http.Request) {
@@ -48,17 +65,22 @@ func (app *application) showMovieHandler(w http.ResponseWriter, r *http.Request)
 		app.notFoundResponse(w, r)
 		return
 	}
-	movie := data.Movie{
-		Id:        id,
-		CreatedAt: time.Now(),
-		Title:     "Casablanca",
-		Runtime:   102,
-		Genres:    []string{"drama", "romance", "war"},
-		Version:   1,
+
+	movie, err := app.models.Movies.Get(id)
+	if err != nil {
+		if errors.Is(err, data.ErrRecordNotFound) {
+			app.notFoundResponse(w, r)
+			return
+		}
+		app.serverErrorResponse(w, r, err)
+			return
+
 	}
 	err = app.writeJSON(w, http.StatusOK, envelope{"movie": movie}, nil)
 	if err != nil {
 		app.serverErrorResponse(w, r ,err)
+			return
+
 	}
 	
 }

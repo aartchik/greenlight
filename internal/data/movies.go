@@ -1,7 +1,11 @@
 package data
 
 import (
+	"database/sql"
+	"errors"
 	"time"
+
+	"github.com/lib/pq"
 	"greenlight.aartchik.net/internal/validator"
 )
 
@@ -15,6 +19,43 @@ type Movie struct {
 	Runtime   Runtime	`json:"runtime,omitempty"`
 	Genres    []string 	`json:"genres,omitempty"`
 	Version   int32		`json:"version"`
+}
+
+type MovieModel struct {
+	DB *sql.DB
+}
+
+func (m MovieModel) Insert(movie *Movie) error {
+	stmt := "insert into movies(title, year, runtime, genres) values ($1, $2, $3, $4) returning id, created_at, version"
+	args := []any{movie.Title, movie.Year, movie.Runtime, pq.Array(movie.Genres)}
+	return m.DB.QueryRow(stmt, args...).Scan(&movie.Id, &movie.CreatedAt, &movie.Version)
+}
+func (m MovieModel) Get(id int64) (*Movie, error) {
+	stmt := "select id, created_at, title, year, runtime, genres, version from movies where id = $1"
+	movie := Movie{}
+	err := m.DB.QueryRow(stmt, id).Scan(
+		&movie.Id,
+		&movie.CreatedAt,
+		&movie.Title,
+		&movie.Year,
+		&movie.Runtime,
+		pq.Array(&movie.Genres), 
+		&movie.Version)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrRecordNotFound
+		}
+		return nil, err
+	}
+	return &movie, nil
+
+}
+
+func (m MovieModel) Update(movie *Movie) error {
+	return nil
+}
+func (m MovieModel) Delete(id int64) error {
+	return nil
 }
 
 

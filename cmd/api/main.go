@@ -1,6 +1,7 @@
 package main
 
 import (
+	"greenlight.aartchik.net/internal/data"
 	"context"
 	"database/sql"
 	"flag"
@@ -25,6 +26,7 @@ type application struct {
 	infoLog *log.Logger
 	errorLog *log.Logger
 	config config
+	models data.Models
 }
 
 func openDB(cfg config) (*sql.DB, error) {
@@ -49,23 +51,26 @@ func main() {
 
 	flag.StringVar(&cfg.Addr, "addr", ":4000", "API server port")
 	flag.StringVar(&cfg.env, "env", "development", "Environment (development|staging|production)")
-	flag.StringVar(&cfg.db.dsn, "db-dsn", os.Getenv("GREENLIGHT_DB_DSN"), "PostgreSQL DSN")
+	flag.StringVar(&cfg.db.dsn, "db-dsn", os.Getenv("db_dsn"), "PostgreSQL DSN")
 	flag.Parse()
 
 
 	infoLog := log.New(os.Stdout, "INFO\t", log.Default().Flags())
 	errorLog := log.New(os.Stderr, "ERROR\t", log.Ldate|log.Ltime|log.Lshortfile)
 
-	app := &application{
-		infoLog: infoLog,
-		errorLog: errorLog,
-		config: cfg,
-	}
-
 	db, err := openDB(cfg)
 	if err != nil {
 		errorLog.Fatal()
 	}
+
+	app := &application{
+		infoLog: infoLog,
+		errorLog: errorLog,
+		config: cfg,
+		models: data.NewModels(db),
+	}
+
+
 
 	defer db.Close()
 
