@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"time"
+	"context"
 
 	"github.com/lib/pq"
 	"greenlight.aartchik.net/internal/validator"
@@ -28,12 +29,19 @@ type MovieModel struct {
 func (m MovieModel) Insert(movie *Movie) error {
 	stmt := "insert into movies(title, year, runtime, genres) values ($1, $2, $3, $4) returning id, created_at, version"
 	args := []any{movie.Title, movie.Year, movie.Runtime, pq.Array(movie.Genres)}
-	return m.DB.QueryRow(stmt, args...).Scan(&movie.Id, &movie.CreatedAt, &movie.Version)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	return m.DB.QueryRowContext(ctx, stmt, args...).Scan(&movie.Id, &movie.CreatedAt, &movie.Version)
 }
 func (m MovieModel) Get(id int64) (*Movie, error) {
 	stmt := "select id, created_at, title, year, runtime, genres, version from movies where id = $1"
 	movie := Movie{}
-	err := m.DB.QueryRow(stmt, id).Scan(
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	err := m.DB.QueryRowContext(ctx, stmt, id).Scan(
 		&movie.Id,
 		&movie.CreatedAt,
 		&movie.Title,
@@ -53,7 +61,7 @@ func (m MovieModel) Get(id int64) (*Movie, error) {
 
 func (m MovieModel) Update(movie *Movie) error {
 	stmt := `update movies set title = $1, year = $2, runtime = $3, genres = $4, version = version + 1
-	where id = $5 returning version`
+	where id = $5 and version = $6 returning version`
 
 	args := []any{
 		movie.Title,
@@ -61,9 +69,18 @@ func (m MovieModel) Update(movie *Movie) error {
 		movie.Runtime,
 		pq.Array(movie.Genres),
 		movie.Id,
+		movie.Version,
 	}
-	
-	return m.DB.QueryRow(stmt, args...).Scan(&movie.Version)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	err := m.DB.QueryRowContext(ctx, stmt, args...).Scan(&movie.Version)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrEditConflict
+		}
+		return err
+	}
+	return nil
 }
 
 func (m MovieModel) Delete(id int64) error {
@@ -73,8 +90,10 @@ func (m MovieModel) Delete(id int64) error {
 	}
 
 	stmt := "delete from movies where id = $1"
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
 
-	result, err := m.DB.Exec(stmt, id)
+	result, err := m.DB.ExecContext(ctx, stmt, id)
 	if err != nil {
 		return err
 	}
