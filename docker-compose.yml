@@ -1,0 +1,44 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: greenlight_user
+      POSTGRES_PASSWORD: 1234
+      POSTGRES_DB: greenlight
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U greenlight_user -d greenlight -h localhost"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+
+  migrate:
+    image: migrate/migrate:v4.17.1
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./migrations:/migrations:ro
+    command:
+      [
+        "-path", "/migrations",
+        "-database", "postgres://greenlight_user:1234@db:5432/greenlight?sslmode=disable",
+        "up"
+      ]
+    restart: "no"
+
+  app:
+    build: .
+    ports:
+      - "4000:4000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      db_dsn: "postgres://greenlight_user:1234@db:5432/greenlight?sslmode=disable"
+    command: ["./server"]
+    
+
+volumes:
+  dbdata:
