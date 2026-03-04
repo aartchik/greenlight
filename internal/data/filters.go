@@ -13,6 +13,22 @@ type Filters struct {
 }
 
 
+type Metadata struct {
+	Current_page int  `json:"current_page`
+	Page_size int	  `json:"page_size"`
+	First_page int    `json:"first_page"`
+	Last_page int     `json:"last_page"`
+	Total_records int `json:"total_records"`
+	
+}
+
+func (f Filters) limit() int {
+	return f.PageSize
+}
+func (f Filters) offset() int {
+	return (f.Page - 1) * f.PageSize
+}
+
 func ValidateFilters(v *validator.Validator, filter *Filters) {
 
 
