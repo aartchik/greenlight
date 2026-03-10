@@ -1,15 +1,18 @@
 package main
 
 import (
-	"greenlight.aartchik.net/internal/data"
 	"context"
 	"database/sql"
 	"flag"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"time"
+
 	_ "github.com/lib/pq"
+	"greenlight.aartchik.net/internal/data"
+	"greenlight.aartchik.net/internal/jsonlog"
 )
 
 const version = "1.0.0"
@@ -20,11 +23,15 @@ type config struct {
 	db struct {
 		dsn string
 	}
+	limiter struct {
+		rps float64
+		burst int
+		enabled bool
+	}
 }
 
 type application struct {
-	infoLog *log.Logger
-	errorLog *log.Logger
+	logger *jsonlog.Logger
 	config config
 	models data.Models
 }
@@ -40,7 +47,7 @@ func openDB(cfg config) (*sql.DB, error) {
 
 	err = db.PingContext(ctx)
 	if err != nil {
-	return nil, err
+		return nil, err
 	}
 	return db, nil
 }
@@ -52,20 +59,20 @@ func main() {
 	flag.StringVar(&cfg.Addr, "addr", ":4000", "API server port")
 	flag.StringVar(&cfg.env, "env", "development", "Environment (development|staging|production)")
 	flag.StringVar(&cfg.db.dsn, "db-dsn", os.Getenv("db_dsn"), "PostgreSQL DSN")
+	flag.Float64Var(&cfg.limiter.rps, "limiter-rps", 2, "Rate limiter maximum requests per second")
+	flag.IntVar(&cfg.limiter.burst, "limiter-burst", 4, "Rate limiter maximum burst")
+	flag.BoolVar(&cfg.limiter.enabled, "limiter-enabled", true, "Enable rate limiter")
 	flag.Parse()
 
-
-	infoLog := log.New(os.Stdout, "INFO\t", log.Default().Flags())
-	errorLog := log.New(os.Stderr, "ERROR\t", log.Ldate|log.Ltime|log.Lshortfile)
+	logger := jsonlog.New(os.Stdout, jsonlog.LevelInfo)
 
 	db, err := openDB(cfg)
 	if err != nil {
-		errorLog.Fatal()
+		logger.PrintFatal(err, nil)
 	}
 
 	app := &application{
-		infoLog: infoLog,
-		errorLog: errorLog,
+		logger: logger,
 		config: cfg,
 		models: data.NewModels(db),
 	}
@@ -74,20 +81,20 @@ func main() {
 
 	defer db.Close()
 
-	infoLog.Printf("database connection pool established")
+	logger.PrintInfo("database connection pool established", nil)
 
 	srv := &http.Server{
-		ErrorLog: app.errorLog,
 		Addr: cfg.Addr,
 		Handler: app.routes(),
+		ErrorLog: log.New(logger, "", 0),
 		IdleTimeout: time.Minute,
 		ReadTimeout: 10 * time.Second,
 		WriteTimeout: 30 * time.Second,
 	}
 
-	infoLog.Printf("Starting %s server on %s", cfg.env, srv.Addr)
+	logger.PrintInfo(fmt.Sprintf("Starting %s server on %s", cfg.env, srv.Addr), nil)
 	err = srv.ListenAndServe()
-	errorLog.Fatal(err)
+	logger.PrintFatal(err, nil)
 
 
 }

@@ -1,7 +1,6 @@
 services:
   db:
     image: postgres:16-alpine
-    container_name: mypostgresql
     environment:
       POSTGRES_USER: greenlight_user
       POSTGRES_PASSWORD: 1234
@@ -30,7 +29,6 @@ services:
     restart: "no"
 
   app:
-    container_name: greenlight
     build: .
     ports:
       - "4000:4000"
