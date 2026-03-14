@@ -4,9 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"flag"
-	"fmt"
-	"log"
-	"net/http"
 	"os"
 	"time"
 
@@ -18,7 +15,7 @@ import (
 const version = "1.0.0"
 
 type config struct {
-	Addr string
+	port string
 	env string
 	db struct {
 		dsn string
@@ -56,7 +53,7 @@ func main() {
 
 	var cfg config
 
-	flag.StringVar(&cfg.Addr, "addr", ":4000", "API server port")
+	flag.StringVar(&cfg.port, "port", ":4000", "API server port")
 	flag.StringVar(&cfg.env, "env", "development", "Environment (development|staging|production)")
 	flag.StringVar(&cfg.db.dsn, "db-dsn", os.Getenv("db_dsn"), "PostgreSQL DSN")
 	flag.Float64Var(&cfg.limiter.rps, "limiter-rps", 2, "Rate limiter maximum requests per second")
@@ -83,18 +80,8 @@ func main() {
 
 	logger.PrintInfo("database connection pool established", nil)
 
-	srv := &http.Server{
-		Addr: cfg.Addr,
-		Handler: app.routes(),
-		ErrorLog: log.New(logger, "", 0),
-		IdleTimeout: time.Minute,
-		ReadTimeout: 10 * time.Second,
-		WriteTimeout: 30 * time.Second,
-	}
 
-	logger.PrintInfo(fmt.Sprintf("Starting %s server on %s", cfg.env, srv.Addr), nil)
-	err = srv.ListenAndServe()
+	err = app.serve()
 	logger.PrintFatal(err, nil)
-
 
 }

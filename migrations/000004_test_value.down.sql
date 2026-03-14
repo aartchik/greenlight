@@ -1,1 +1,1 @@
-delete from movies where 1;
+delete from movies;

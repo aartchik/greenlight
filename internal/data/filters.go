@@ -14,7 +14,7 @@ type Filters struct {
 
 
 type Metadata struct {
-	Current_page int  `json:"current_page`
+	Current_page int  `json:"current_page"`
 	Page_size int	  `json:"page_size"`
 	First_page int    `json:"first_page"`
 	Last_page int     `json:"last_page"`

@@ -45,7 +45,6 @@ func (app *application) rateLimit(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
 		ip, _, err := net.SplitHostPort(r.RemoteAddr)
-		fmt.Printf(ip)
 		if err != nil {
 			app.serverErrorResponse(w, r, err)
 			return 
