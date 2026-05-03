@@ -6,6 +6,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/lib/pq"
 	"golang.org/x/crypto/bcrypt"
 	"greenlight.aartchik.net/internal/validator"
 )
@@ -59,7 +60,7 @@ func (p *Password) Matches(plaintextPassword string) (bool, error) {
 func (m UserModel) Insert(user *User) error {
 	stmt := `insert into users (name, email, password_hash, activated)
 	values ($1, $2, $3, $4)
-	returing id, created_at, version`
+	RETURNING id, created_at, version`
 
 	args := []any{user.Name, user.Email, user.Password.hash, user.Activated}
 
@@ -68,9 +69,11 @@ func (m UserModel) Insert(user *User) error {
 	
 	err := m.DB.QueryRowContext(ctx, stmt, args...).Scan(&user.ID, &user.CreatedAt, &user.version)
 	if err != nil {
-		if err.Error() == `pq: duplicate key value violates unique constraint "users_email_key"` {
-			return ErrDuplicateEmail
-		}
+		if pqErr, ok := err.(*pq.Error); ok {
+			if pqErr.Code == "23505" {
+				return ErrDuplicateEmail
+			}
+	}
 		return err
 	}
 	return nil

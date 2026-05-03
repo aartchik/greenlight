@@ -22,7 +22,8 @@ type Models struct {
 		GetAll(title string, genres []string, filters Filters) ([]*Movie, *Metadata, error)
 	}
 	Users interface {
-
+		Insert(user *User) error
+		Update(user *User) error
 	}
 }
 
